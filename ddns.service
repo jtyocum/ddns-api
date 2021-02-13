@@ -1,0 +1,23 @@
+[Unit]
+Description=Dynamic DNS Web Service
+After=network.target
+
+[Service]
+ExecStart=/opt/ddns/.venv/bin/uvicorn --app-dir /opt/ddns/app main:app
+Restart=on-failure
+DynamicUser=yes
+ProtectHome=yes
+PrivateDevices=yes
+PrivateUsers=yes
+ProtectClock=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target
+Alias=ddns.service

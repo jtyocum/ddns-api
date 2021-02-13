@@ -1,0 +1,6 @@
+[DEFAULT]
+dns_server = dns.server.example
+tsig_key_name = tsig.name
+tsig_key = example.tsig.key
+dns_zone = example.dns.zone
+shared_key = my.shared.key
