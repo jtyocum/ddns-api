@@ -4,6 +4,8 @@ from fastapi import FastAPI, Query, Header
 import dns.tsigkeyring
 import dns.update
 import dns.query
+from pathlib import Path, PurePath
+import time
 
 
 config = configparser.ConfigParser()
@@ -13,6 +15,7 @@ tsig_key_name = config["DEFAULT"]["tsig_key_name"]
 tsig_key = config["DEFAULT"]["tsig_key"]
 dns_zone = config["DEFAULT"]["dns_zone"]
 shared_key = config["DEFAULT"]["shared_key"]
+conf_cleanup_key = config["DEFAULT"]["cleanup_key"]
 
 tags_metadata = [
     {
@@ -29,15 +32,34 @@ app = FastAPI(
 )
 
 
-def update_dns_rr(hostname, ipaddr):
+def update_dns_rr(hostname: str, operation: str, ipaddr: str = "127.0.0.1"):
     try:
+        hostname = hostname.lower()
         keyring = dns.tsigkeyring.from_text({tsig_key_name: tsig_key})
         update = dns.update.Update(dns_zone, keyring=keyring, keyalgorithm="hmac-sha1")
-        update.replace(hostname, 60, "A", ipaddr)
+        if operation == "update":
+            update.replace(hostname, 60, "A", ipaddr)
+            Path(os.path.join("/tmp", "ddns_" + hostname)).touch()
+        elif operation == "delete":
+            update.delete(hostname, "A")
+            Path(os.path.join("/tmp", "ddns_" + hostname)).unlink()
+        else:
+            return False
         dns.query.tcp(update, dns_server)
-        return {"status": "success"}
+        return True
     except:
+        return False
+
+
+def ddns_update(hostname: str, ipaddr: str):
+    if update_dns_rr(hostname, "update", ipaddr):
+        return {"status": "success"}
+    else:
         return {"status": "failed"}
+
+
+def ddns_delete(hostname: str):
+    return update_dns_rr(hostname, "delete")
 
 
 @app.get("/ddns", tags=["ddns"])
@@ -55,6 +77,22 @@ async def get_ddns(
 ):
 
     if client_shared_key == shared_key:
-        return update_dns_rr(client_hostname, x_forwarded_for)
+        return ddns_update(client_hostname, x_forwarded_for)
+    else:
+        return {"status": "key error"}
+
+
+@app.get("/cleanup")
+async def get_cleanup(
+    cleanup_key: str = Query(..., min_length=8, max_length=32, regex="^[a-zA-Z0-9\-]+$")
+):
+    if cleanup_key == conf_cleanup_key:
+        p = Path("/tmp").glob("ddns_*")
+        for child in p:
+            if child.stat().st_mtime <= (time.time() - 21600):
+                hostname = str(PurePath(child).stem).lstrip("ddns_")
+                ddns_delete(hostname)
+
+        return {"status": "done"}
     else:
         return {"status": "key error"}

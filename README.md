@@ -31,6 +31,10 @@ This guide assumes the user is running on Debian 10. If you need to setup a DNS 
 		systemctl enable ddns
 		systemctl start ddns
 
+6. Create a cron job to cleanup stale records
+
+		wget --quiet -O /dev/null 'http://127.0.0.1:8000/cleanup?cleanup_key=YOURCLEANUPKEY'
+
 ## Proxy
 
 The service should be run behind a reverse proxy, that provides SSL termination. Below is an example using nginx.
